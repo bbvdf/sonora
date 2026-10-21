@@ -1,0 +1,38 @@
+name: build ffi dll
+
+on:
+  push:
+    paths:
+      - '.github/workflows/build-ffi-dll.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Patch crate-type to cdylib
+        shell: pwsh
+        run: |
+          $p = 'crates/sonora-ffi/Cargo.toml'
+          $t = Get-Content $p -Raw
+          $t = $t -replace 'crate-type = \["staticlib", "rlib"\]', 'crate-type = ["staticlib", "rlib", "cdylib"]'
+          Set-Content $p $t -NoNewline
+          Select-String -Path $p -Pattern 'crate-type'
+      - name: Build
+        run: cargo build -p sonora-ffi --release
+      - name: List outputs
+        shell: pwsh
+        run: |
+          Get-ChildItem target/release/*.dll, target/release/*.lib, target/release/*.pdb -ErrorAction SilentlyContinue | Format-Table Name,Length
+          Get-ChildItem crates/sonora-ffi/include
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sonora-ffi-windows
+          path: |
+            target/release/sonora_ffi.dll
+            target/release/sonora_ffi.lib
+            crates/sonora-ffi/include/wap_audio_processing.h
+          if-no-files-found: error
